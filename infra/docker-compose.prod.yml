@@ -1,0 +1,38 @@
+services:
+  api:
+    build: {context: .., dockerfile: infra/Dockerfile.api, target: production}
+    env_file:
+      - path: ../apps/api/.env
+        required: false
+    depends_on: [postgres, redis]
+  reverb:
+    extends: api
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+  worker:
+    extends: api
+    command: ["php", "artisan", "horizon"]
+  scheduler:
+    extends: api
+    command: ["php", "artisan", "schedule:work"]
+  web:
+    build: {context: .., dockerfile: infra/Dockerfile.web}
+  nginx:
+    image: nginx:stable-alpine
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../apps/api/public:/app/apps/api/public:ro
+    ports: ["80:80"]
+    depends_on: [api, reverb, web]
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-banana_chat}
+      POSTGRES_USER: ${POSTGRES_USER:-banana}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+  redis:
+    image: redis:7-alpine
+    volumes: ["redis-data:/data"]
+volumes:
+  postgres-data:
+  redis-data:

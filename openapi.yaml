@@ -1,0 +1,225 @@
+openapi: 3.1.0
+info:
+  title: Banana Chat API
+  version: 1.1.1
+  description: REST contract for Banana Chat. Requirements are defined in PRODUCT_SPEC.md.
+servers:
+  - url: http://127.0.0.1:8000/api/v1
+security: [{bearerAuth: []}]
+paths:
+  /health:
+    get: {security: [], operationId: health, responses: {'200': {description: Healthy}}}
+  /auth/login:
+    post:
+      operationId: login
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/LoginRequest'}}}}
+      responses: {'200': {$ref: '#/components/responses/LoginResponse'}, '401': {$ref: '#/components/responses/Error'}}
+  /auth/refresh:
+    post:
+      operationId: refresh
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [refresh_token], properties: {refresh_token: {type: string}}}}}}
+      responses: {'200': {$ref: '#/components/responses/LoginResponse'}, '401': {$ref: '#/components/responses/Error'}}
+  /auth/logout:
+    post: {operationId: logout, responses: {'204': {description: Logged out}}}
+  /auth/logout-all:
+    post: {operationId: logoutAll, responses: {'204': {description: Logged out everywhere}}}
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [current_password,new_password], properties: {current_password: {type: string}, new_password: {type: string, minLength: 10, maxLength: 128}}}}}}
+      responses: {'204': {description: Password changed}, '422': {$ref: '#/components/responses/Error'}}
+  /me:
+    get: {operationId: getMe, responses: {'200': {description: Current user}}}
+    patch: {operationId: updateMe, responses: {'200': {description: Updated user}}}
+  /me/workspaces:
+    get: {operationId: listMyWorkspaces, responses: {'200': {description: Workspace memberships}}}
+  /me/sessions:
+    get: {operationId: listSessions, responses: {'200': {description: Active sessions}}}
+  /me/sessions/{id}:
+    parameters: [{$ref: '#/components/parameters/Id'}]
+    delete: {operationId: revokeSession, responses: {'204': {description: Session revoked}}}
+  /members:
+    get:
+      operationId: listMembers
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: q, in: query, schema: {type: string}}]
+      responses: {'200': {description: Members page}}
+  /workspace:
+    get: {operationId: getWorkspace, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: Workspace detail}}}
+  /sync:
+    get:
+      operationId: syncWorkspace
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: since, in: query, schema: {type: string, format: date-time}}]
+      responses: {'200': {description: Changed and removed rooms}}
+  /me/focus:
+    post: {operationId: reportFocus, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'204': {description: Focus recorded}}}
+  /rooms:
+    get:
+      operationId: listRooms
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: filter, in: query, schema: {enum: [all,unread,hidden]}}, {name: cursor, in: query, schema: {type: string}}, {name: limit, in: query, schema: {type: integer, maximum: 100}}]
+      responses: {'200': {description: Room page, content: {application/json: {schema: {$ref: '#/components/schemas/RoomPage'}}}}}
+    post:
+      operationId: createRoom
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateRoomRequest'}}}}
+      responses: {'201': {description: Room created}, '200': {description: Existing DM}, '422': {$ref: '#/components/responses/Error'}}
+  /rooms/{id}:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}]
+    get: {operationId: getRoom, responses: {'200': {description: Room detail}, '404': {$ref: '#/components/responses/Error'}}}
+    patch: {operationId: updateRoom, responses: {'200': {description: Room updated}}}
+    delete: {operationId: deleteRoom, responses: {'204': {description: Room deleted}}}
+  /rooms/{id}/members:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}]
+    get: {operationId: listRoomMembers, responses: {'200': {description: Members page}}}
+    post: {operationId: addRoomMembers, responses: {'200': {description: Members added}}}
+  /rooms/{id}/members/{user_id}:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}, {name: user_id, in: path, required: true, schema: {type: string}}]
+    patch: {operationId: changeRoomRole, responses: {'200': {description: Role changed}}}
+    delete: {operationId: removeRoomMember, responses: {'204': {description: Member removed}}}
+  /rooms/{id}/leave:
+    post: {operationId: leaveRoom, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'204': {description: Left room}}}
+  /rooms/{id}/messages:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}]
+    get:
+      operationId: listMessages
+      parameters: [{name: before_seq, in: query, schema: {type: integer}}, {name: after_seq, in: query, schema: {type: integer}}, {name: around_seq, in: query, schema: {type: integer}}, {name: limit, in: query, schema: {type: integer, maximum: 100}}]
+      responses: {'200': {description: Message page, content: {application/json: {schema: {$ref: '#/components/schemas/MessagePage'}}}}}
+    post:
+      operationId: sendMessage
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SendMessageRequest'}}}}
+      responses: {'201': {description: Message created}, '200': {description: Idempotent replay}}
+  /messages/{id}:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}]
+    patch: {operationId: editMessage, responses: {'200': {description: Message edited}}}
+    delete: {operationId: deleteMessage, responses: {'204': {description: Message deleted}}}
+  /rooms/{id}/read:
+    post: {operationId: markRoomRead, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'200': {description: Read cursor}}}
+  /rooms/{id}/read-status:
+    get: {operationId: getReadStatus, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}, {name: seq, in: query, required: true, schema: {type: integer}}], responses: {'200': {description: Readers}}}
+  /uploads:
+    post:
+      operationId: createUpload
+      parameters: [{$ref: '#/components/parameters/Workspace'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CreateUploadRequest'}}}}
+      responses: {'201': {description: Presigned upload, content: {application/json: {schema: {type: object}}}}, '422': {$ref: '#/components/responses/Error'}}
+  /uploads/{id}/content:
+    put: {operationId: putLocalUploadContent, security: [], description: Development local-disk fallback for the presigned object-storage PUT URL., parameters: [{$ref: '#/components/parameters/Id'}], requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}, responses: {'204': {description: Uploaded}}}
+  /uploads/{id}/complete:
+    post: {operationId: completeUpload, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'200': {description: Attachment accepted for processing}, '422': {$ref: '#/components/responses/Error'}}}
+  /attachments/{id}:
+    get: {operationId: getAttachment, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'200': {description: Attachment with refreshed URLs}, '404': {$ref: '#/components/responses/Error'}}}
+  /search/messages:
+    get:
+      operationId: searchMessages
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: q, in: query, required: true, schema: {type: string, minLength: 2}}, {name: room_id, in: query, schema: {type: string}}, {name: sender_id, in: query, schema: {type: string}}, {name: type, in: query, schema: {enum: [text,image,video,file]}}, {name: cursor, in: query, schema: {type: string}}]
+      responses: {'200': {description: Message search page}, '422': {$ref: '#/components/responses/Error'}}
+  /search/files:
+    get:
+      operationId: searchFiles
+      parameters: [{$ref: '#/components/parameters/Workspace'}, {name: q, in: query, required: true, schema: {type: string, minLength: 2}}, {name: room_id, in: query, schema: {type: string}}, {name: kind, in: query, schema: {enum: [image,video,file,avatar]}}, {name: cursor, in: query, schema: {type: string}}]
+      responses: {'200': {description: File search page}, '422': {$ref: '#/components/responses/Error'}}
+  /me/mentions:
+    get: {operationId: listMentions, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: Mentioned messages}}}
+  /notifications:
+    get: {operationId: listNotifications, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: Notification list}}}
+  /notifications/read-all:
+    post: {operationId: readAllNotifications, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'204': {description: Updated}}}
+  /notifications/{id}/read:
+    post: {operationId: readNotification, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'204': {description: Updated}}}
+  /notification-settings:
+    get: {operationId: getNotificationSettings, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: Preferences}}}
+    patch: {operationId: updateNotificationSettings, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: Preferences}}}
+  /rooms/{id}/notification-settings:
+    patch: {operationId: updateRoomNotificationSettings, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'200': {description: Preferences}}}
+  /devices:
+    post: {operationId: registerDevice, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'201': {description: Device registered}}}
+  /presence:
+    post: {operationId: updatePresence, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'204': {description: Updated}}}
+  /ai/status:
+    get: {operationId: getAiStatus, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: AI status}}}
+  /ai/consent:
+    post: {operationId: consentToAi, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'204': {description: Consent recorded}}}
+  /ai/conversations:
+    get: {operationId: listAiConversations, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: Conversation page}}}
+    post: {operationId: createAiConversation, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'201': {description: Conversation created}}}
+  /ai/conversations/{id}:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}]
+    get: {operationId: getAiConversation, responses: {'200': {description: Conversation}}}
+    patch: {operationId: updateAiConversation, responses: {'200': {description: Conversation updated}}}
+    delete: {operationId: deleteAiConversation, responses: {'204': {description: Conversation deleted}}}
+  /ai/conversations/{id}/messages:
+    parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}]
+    get: {operationId: listAiMessages, responses: {'200': {description: AI message page}}}
+    post: {operationId: sendAiMessage, responses: {'202': {description: Generation queued}}}
+  /ai/messages/{id}:
+    get: {operationId: getAiMessage, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'200': {description: AI message}}}
+    patch: {operationId: editAiMessage, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'202': {description: Generation queued}}}
+  /ai/messages/{id}/cancel:
+    post: {operationId: cancelAiMessage, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'200': {description: Cancellation requested}}}
+  /ai/messages/{id}/regenerate:
+    post: {operationId: regenerateAiMessage, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'202': {description: Generation queued}}}
+  /ai/messages/{id}/share:
+    post: {operationId: shareAiMessage, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'201': {description: Room message created}}}
+  /ai/search:
+    get: {operationId: searchAi, parameters: [{$ref: '#/components/parameters/Workspace'}, {name: q, in: query, required: true, schema: {type: string, minLength: 2}}], responses: {'200': {description: AI message search results}}}
+  /ai/memories:
+    get: {operationId: listAiMemories, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'200': {description: User memories}}}
+    post: {operationId: addAiMemory, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'201': {description: Memory added}}}
+  /ai/memories/{id}:
+    delete: {operationId: deleteAiMemory, parameters: [{$ref: '#/components/parameters/Workspace'}, {$ref: '#/components/parameters/Id'}], responses: {'204': {description: Memory deleted}}}
+  /ai/memories/clear:
+    post: {operationId: clearAiMemories, parameters: [{$ref: '#/components/parameters/Workspace'}], responses: {'204': {description: Memories cleared}}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  parameters:
+    Id: {name: id, in: path, required: true, schema: {type: string, pattern: '^[0-9A-HJKMNP-TV-Z]{26}$'}}
+    Workspace: {name: X-Workspace-Id, in: header, required: true, schema: {type: string}}
+  responses:
+    Error: {description: Error envelope, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorEnvelope'}}}}
+    LoginResponse: {description: Tokens and account data, content: {application/json: {schema: {type: object, properties: {data: {$ref: '#/components/schemas/LoginResult'}}}}}}
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username,password,device]
+      properties:
+        username: {type: string}
+        password: {type: string}
+        device: {type: object, required: [platform,name,app_version], properties: {platform: {enum: [web,ios,android]}, name: {type: string}, app_version: {type: string}}}
+    LoginResult:
+      type: object
+      required: [access_token,refresh_token,expires_in,user,workspaces,must_change_password]
+      properties:
+        access_token: {type: string}
+        refresh_token: {type: string}
+        expires_in: {type: integer}
+        user: {$ref: '#/components/schemas/User'}
+        workspaces: {type: array, items: {type: object}}
+        must_change_password: {type: boolean}
+    User:
+      type: object
+      required: [id,username,display_name,status]
+      properties: {id: {type: string}, username: {type: string}, display_name: {type: string}, status: {enum: [active,suspended,deactivated]}, avatar: {type: [object,'null']}}
+    Room:
+      type: object
+      required: [id,workspace_id,type,last_seq,unread_count]
+      properties: {id: {type: string}, workspace_id: {type: string}, type: {enum: [dm,group]}, name: {type: [string,'null']}, description: {type: [string,'null']}, last_seq: {type: integer}, unread_count: {type: integer}, my_role: {enum: [owner,admin,member]}, last_message: {oneOf: [{$ref: '#/components/schemas/Message'},{type: 'null'}]}}
+    Attachment:
+      type: object
+      required: [id,kind,status,original_name,mime_type,size_bytes,urls,url_expires_at]
+      properties: {id: {type: string}, kind: {enum: [image,video,file,avatar]}, status: {enum: [pending,uploaded,processing,ready,failed]}, original_name: {type: string}, mime_type: {type: string}, size_bytes: {type: integer}, width: {type: [integer,'null']}, height: {type: [integer,'null']}, duration_ms: {type: [integer,'null']}, urls: {type: object, additionalProperties: {type: string}}, url_expires_at: {type: string, format: date-time}}
+    Message:
+      type: object
+      required: [id,room_id,seq,type,body,attachments,created_at]
+      properties: {id: {type: string}, room_id: {type: string}, seq: {type: integer}, type: {enum: [text,image,video,file,system]}, sender: {oneOf: [{$ref: '#/components/schemas/User'},{type: 'null'}]}, body: {type: [string,'null']}, attachments: {type: array, items: {$ref: '#/components/schemas/Attachment'}}, system_event: {type: [object,'null']}, created_at: {type: string, format: date-time}, edited_at: {type: [string,'null'], format: date-time}, deleted_at: {type: [string,'null'], format: date-time}}
+    RoomPage: {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Room'}}, meta: {$ref: '#/components/schemas/PageMeta'}}}
+    MessagePage: {type: object, properties: {data: {type: array, items: {$ref: '#/components/schemas/Message'}}, meta: {$ref: '#/components/schemas/PageMeta'}}}
+    PageMeta: {type: object, properties: {next_cursor: {type: [string,'null']}, has_more: {type: boolean}, has_more_before: {type: boolean}, has_more_after: {type: boolean}}}
+    CreateRoomRequest:
+      oneOf:
+        - {type: object, required: [type,user_id], properties: {type: {const: dm}, user_id: {type: string}}}
+        - {type: object, required: [type,name], properties: {type: {const: group}, name: {type: string, minLength: 1, maxLength: 100}, description: {type: string, maxLength: 500}, member_ids: {type: array, maxItems: 500, items: {type: string}}}}
+    CreateUploadRequest: {type: object, required: [kind,filename,mime_type,size_bytes], properties: {kind: {enum: [image,video,file,avatar]}, filename: {type: string, maxLength: 255}, mime_type: {type: string}, size_bytes: {type: integer, minimum: 1}, sha256: {type: string, pattern: '^[a-fA-F0-9]{64}$'}}}
+    SendMessageRequest: {type: object, required: [client_message_id], anyOf: [{required: [body]}, {required: [attachment_ids]}], properties: {client_message_id: {type: string, format: uuid}, body: {type: [string,'null'], maxLength: 4000}, attachment_ids: {type: array, maxItems: 10, items: {type: string}}, reply_to_message_id: {type: string}}}
+    ErrorEnvelope: {type: object, required: [error], properties: {error: {type: object, required: [code,message,request_id], properties: {code: {type: string}, message: {type: string}, details: {type: object}, request_id: {type: string}}}}}

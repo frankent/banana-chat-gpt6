@@ -1,0 +1,12 @@
+import {useEffect,useRef,type ReactNode} from 'react';
+import {X,LoaderCircle} from 'lucide-react';
+import {useTranslation} from 'react-i18next';
+export function Banana({size=32}:{size?:number}){return <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M34 9c2 15-7 27-24 22 5 10 22 13 29 0 4-7 2-13-2-17l-3-5Z" fill="currentColor"/><path d="m32 9 4-2 3 6-4 2" stroke="currentColor" strokeWidth="3" strokeLinejoin="round"/></svg>;}
+export function Avatar({name,size='normal',color}:{name:string;size?:'small'|'normal'|'large';color?:number}){const hash=color??[...name].reduce((a,c)=>a+c.charCodeAt(0),0)%6;return <span className={`avatar ${size} color-${hash}`} aria-hidden="true">{name.split(' ').filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase()}</span>;}
+export function IconButton({label,children,onClick,className='',disabled=false}:{label:string;children:ReactNode;onClick?:()=>void;className?:string;disabled?:boolean}){return <button className={'icon-button '+className} aria-label={label} title={label} onClick={onClick} disabled={disabled}>{children}</button>;}
+export function Spinner(){return <div className="loading" role="status"><LoaderCircle className="spin" size={24}/><span className="sr-only">Loading</span></div>;}
+export function Modal({title,children,onClose,wide=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean}){
+ const {t}=useTranslation();const ref=useRef<HTMLDivElement>(null);
+ useEffect(()=>{const previous=document.activeElement as HTMLElement;const el=ref.current;el?.querySelector<HTMLElement>('input,button,textarea,select')?.focus();const key=(e:KeyboardEvent)=>{if(e.key==='Escape')onClose();if(e.key==='Tab'){const focusables=el?.querySelectorAll<HTMLElement>('button:not(:disabled),input,textarea,select,a[href]');if(!focusables?.length)return;const first=focusables[0],last=focusables[focusables.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus();};},[onClose]);
+ return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><div className={'modal '+(wide?'wide':'')} role="dialog" aria-modal="true" aria-label={title} ref={ref}><header><h2>{title}</h2><IconButton label={t('cancel')} onClick={onClose}><X size={20}/></IconButton></header>{children}</div></div>;
+}

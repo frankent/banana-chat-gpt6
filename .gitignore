@@ -1,0 +1,16 @@
+node_modules/
+vendor/
+dist/
+.turbo/
+.expo/
+.env
+.env.*.local
+!.env.example
+.tools/
+*.sqlite
+*.sqlite-*
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+apps/api/storage/*.key

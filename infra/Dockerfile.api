@@ -1,0 +1,13 @@
+FROM php:8.3-fpm-alpine AS base
+RUN apk add --no-cache icu-dev sqlite-dev libpq-dev libzip-dev oniguruma-dev linux-headers libpng-dev libjpeg-turbo-dev libwebp-dev freetype-dev ffmpeg $PHPIZE_DEPS \
+ && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+ && docker-php-ext-install intl pdo_pgsql pdo_sqlite pcntl bcmath zip mbstring gd exif \
+ && pecl install redis && docker-php-ext-enable redis
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+WORKDIR /app/apps/api
+FROM base AS production
+COPY apps/api /app/apps/api
+RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader \
+ && chown -R www-data:www-data storage bootstrap/cache
+USER www-data
+CMD ["php-fpm"]

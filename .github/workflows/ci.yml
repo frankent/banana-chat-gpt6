@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '20 20 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.12.4 --activate
+      - run: pnpm install --frozen-lockfile
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, intl, mbstring, pcntl, pdo_sqlite, zip
+          coverage: none
+
+      - run: composer install --working-dir=apps/api --no-interaction --prefer-dist
+      - run: cp apps/api/.env.example apps/api/.env
+      - run: php apps/api/artisan key:generate
+      - run: pnpm check
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target production -f infra/Dockerfile.api -t banana-chat-api .
+      - run: docker build -f infra/Dockerfile.web -t banana-chat-web .

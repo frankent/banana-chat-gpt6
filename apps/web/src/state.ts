@@ -1,0 +1,11 @@
+import {create} from 'zustand';
+import {ApiClient} from '@banana/api-client';
+import type {User,Membership,LoginResult} from '@banana/shared';
+interface SessionState {user:User|null;workspaces:Membership[];workspaceId:string|null;ready:boolean;setUser:(user:User|null)=>void;setWorkspaces:(workspaces:Membership[])=>void;selectWorkspace:(id:string)=>void;}
+export const useSession=create<SessionState>(set=>({user:null,workspaces:[],workspaceId:null,ready:false,setUser:user=>set({user}),setWorkspaces:workspaces=>set({workspaces}),selectWorkspace:id=>{api.workspaceId=id;localStorage.setItem('banana:workspace',id);set({workspaceId:id});}}));
+export const api=new ApiClient(import.meta.env.VITE_API_URL??'/api/v1',{get:async()=>localStorage.getItem('banana:refresh'),set:async token=>{if(token)localStorage.setItem('banana:refresh',token);else localStorage.removeItem('banana:refresh');}},()=>{useSession.setState({user:null,workspaces:[],workspaceId:null});api.workspaceId=null;Object.keys(localStorage).filter(k=>k.startsWith('banana:draft:')).forEach(k=>localStorage.removeItem(k));});
+api.app={platform:'web',version:'0.1.0'};
+export function acceptUser(user:User,workspaces:Membership[]){const saved=localStorage.getItem('banana:workspace');const id=workspaces.some(w=>w.workspace.id===saved)?saved:workspaces[0]?.workspace.id??null;api.workspaceId=id;useSession.setState({user,workspaces,workspaceId:id,ready:true});}
+export async function login(username:string,password:string){const data=await api.request<LoginResult>('/auth/login',{method:'POST',body:JSON.stringify({username,password,device:{platform:'web',name:navigator.userAgent.includes('Mac')?'Mac browser':'Web browser',app_version:'0.1.0'}})},false);await api.tokens.set(data);acceptUser(data.user,data.workspaces);return data;}
+let bootstrap:Promise<void>|undefined;
+export function restoreSession(){return bootstrap??=(async()=>{try{if(localStorage.getItem('banana:refresh')){await api.tokens.refresh();const {user}=await api.get<{user:User}>('/me');const workspaces=user.must_change_password?[]:await api.get<Membership[]>('/me/workspaces');acceptUser(user,workspaces);}}catch{useSession.setState({user:null});}finally{useSession.setState({ready:true});}})();}

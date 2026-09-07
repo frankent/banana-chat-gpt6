@@ -1,0 +1,17 @@
+<?php
+namespace App\Http\Controllers;
+use App\Models\{User,Workspace,WorkspaceMember,Room,RoomMember};
+use App\Support\{Resources,ApiError};
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\{DB,Cache};
+use App\Events\ChatEvent;
+class WorkspaceController extends Controller {
+ public function forUser(User $u):array{return WorkspaceMember::with('workspace')->where('user_id',$u->id)->where('status','active')->whereHas('workspace',fn($q)=>$q->where('status','active'))->get()->map(function($m)use($u){$unread=DB::table('room_members as rm')->join('rooms as r','r.id','=','rm.room_id')->where('rm.user_id',$u->id)->where('rm.workspace_id',$m->workspace_id)->whereNull('rm.left_at')->whereNull('r.deleted_at')->whereExists(fn($q)=>$q->selectRaw('1')->from('messages')->whereColumn('messages.room_id','r.id')->whereColumn('messages.seq','>','rm.last_read_seq')->where('messages.type','!=','system')->where('messages.sender_id','!=',$u->id))->whereNotExists(fn($q)=>$q->selectRaw('1')->from('room_notification_settings as ns')->whereColumn('ns.room_id','r.id')->where('ns.user_id',$u->id)->where(fn($q)=>$q->where('ns.mode','none')->orWhere('ns.muted_until','>',now())))->count();return ['workspace'=>$m->workspace,'role'=>$m->role,'unread_rooms_count'=>$unread,'has_mentions'=>false];})->all();}
+ public function workspaces(Request $r){return response()->json(['data'=>$this->forUser($r->user())]);}
+ public function me(Request $r){return response()->json(['data'=>['user'=>$r->user(),'settings'=>[]]]);}
+ public function profile(Request $r){$v=$r->validate(['display_name'=>'sometimes|required|string|max:80','locale'=>'sometimes|in:th,en','timezone'=>'sometimes|timezone','ai_memory_enabled'=>'sometimes|boolean']);$r->user()->update($v);foreach($this->forUser($r->user()) as $w)ChatEvent::dispatch('workspace.'.$w['workspace']->id,'user.updated',['user'=>Resources::user($r->user())],$w['workspace']->id);return $this->me($r);}
+ public function members(Request $r){$r->validate(['q'=>'nullable|string|max:100']);$q=WorkspaceMember::with('user')->where('workspace_id',$r->header('X-Workspace-Id'))->where('status','active')->whereHas('user',function($q)use($r){$q->where('status','!=','deactivated');if($r->filled('q')){$term='%'.mb_strtolower($r->input('q')).'%';$q->where(fn($x)=>$x->whereRaw('lower(display_name) LIKE ?',[$term])->orWhere('username','like',$term));}});return Resources::page($q->orderBy('id')->cursorPaginate(50),fn($m)=>Resources::user($m->user)+['role'=>$m->role]);}
+ public function show(Request $r){return response()->json(['data'=>['workspace'=>$r->attributes->get('workspace'),'my_role'=>$r->attributes->get('workspace_membership')->role]]);}
+ public function sync(Request $r){$r->validate(['since'=>'nullable|date']);$q=Room::whereHas('members',fn($q)=>$q->where('user_id',$r->user()->id));if($r->filled('since'))$q->where('updated_at','>=',$r->date('since'));$removed=RoomMember::where('user_id',$r->user()->id)->where(function($q){$q->whereNotNull('left_at')->orWhereHas('room',fn($q)=>$q->onlyTrashed());})->pluck('room_id');return response()->json(['data'=>['rooms_changed'=>$q->get()->map(fn($x)=>Resources::room($x)),'rooms_removed'=>$removed,'members_changed'=>[],'server_time'=>now()->toISOString()]]);}
+ public function focus(Request $r){$r->validate(['room_id'=>'nullable|ulid']);if($r->filled('room_id'))app(\App\Domain\Room\RoomAccess::class)->find($r->input('room_id'));Cache::put('focus:'.$r->user()->id.':'.$r->attributes->get('chat_session')->id,$r->input('room_id'),30);return response()->noContent();}
+}

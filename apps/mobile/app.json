@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Banana Chat",
+    "slug": "banana-chat",
+    "scheme": "bananachat",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "ios": {"supportsTablet": true, "bundleIdentifier": "com.bananachat.mobile"},
+    "android": {"package": "com.bananachat.mobile"},
+    "experiments": {"typedRoutes": true}
+  }
+}
