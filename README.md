@@ -74,6 +74,12 @@ corepack pnpm exec playwright install chromium
 corepack pnpm test:e2e
 ```
 
+Run the isolated full-stack regression suite with one command. It creates a temporary SQLite database, starts the API and web app, checks backend health, exercises chat messages and attachments, signs into the admin panel, and saves screenshots, videos, traces, and an HTML report under `artifacts/regression/`:
+
+```bash
+corepack pnpm test:regression
+```
+
 API routes are described in [openapi.yaml](./openapi.yaml); regenerate TypeScript contract types with `corepack pnpm gen:client`.
 
 Production deployment, backup, restore, rollback, and incident commands are documented in [docs/RUNBOOK.md](./docs/RUNBOOK.md).

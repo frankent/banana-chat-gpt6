@@ -17,6 +17,8 @@
     "test": "vitest run",
     "test:api": "cd apps/api && php artisan test",
     "test:e2e": "playwright test",
+    "test:regression": "bash scripts/run-regression.sh",
+    "test:regression:playwright": "playwright test --config=playwright.regression.config.ts",
     "gen:client": "openapi-typescript openapi.yaml -o packages/api-client/src/generated.ts",
     "check": "npm run typecheck --silent && npm run typecheck:mobile --silent && npm run test --silent && npm run test:api --silent && npm run build --silent"
   },

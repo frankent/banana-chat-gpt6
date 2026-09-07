@@ -29,13 +29,21 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: bcmath, intl, mbstring, pcntl, pdo_sqlite, zip
+          extensions: bcmath, gd, intl, mbstring, pcntl, pdo_sqlite, zip
           coverage: none
 
       - run: composer install --working-dir=apps/api --no-interaction --prefer-dist
       - run: cp apps/api/.env.example apps/api/.env
       - run: php apps/api/artisan key:generate
       - run: pnpm check
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:regression
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-regression
+          path: artifacts/regression
+          retention-days: 14
 
   container:
     runs-on: ubuntu-latest

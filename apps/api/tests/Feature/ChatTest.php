@@ -104,6 +104,14 @@ class ChatTest extends TestCase
         $this->postJson("/api/v1/rooms/$id/messages",$payload)->assertOk()->assertJsonPath('data.message.id',$message['id']);
         $this->assertDatabaseCount('messages',2);
     }
+    public function test_optional_emqx_outage_does_not_break_core_chat_writes(): void
+    {
+        config()->set(['services.emqx.app_id'=>'configured','services.emqx.app_secret'=>'configured','services.emqx.rest_endpoint'=>'offline.example']);
+        Http::fake(fn()=>throw new \Illuminate\Http\Client\ConnectionException('broker offline'));
+        $u=$this->account();$w=$this->workspace($u);$id=$this->group($u,$w);
+        $this->postJson("/api/v1/rooms/$id/messages",['body'=>'Core chat stays available','client_message_id'=>(string)Str::uuid()])->assertCreated();
+        $this->assertDatabaseHas('messages',['room_id'=>$id,'body'=>'Core chat stays available']);
+    }
     public function test_TC_MSG_004_005_rejects_empty_and_oversized_text(): void
     {
         $u=$this->account();$w=$this->workspace($u);$id=$this->group($u,$w);
